@@ -1,3 +1,4 @@
+from instance.site_settings import SHARED_HOST_SETTINGS
 from flask import Flask, g, session, request, redirect, flash, abort, url_for
 from flask_mail import Mail
 from shotglass2 import shotglass
@@ -95,27 +96,45 @@ def _before():
     g.user = None
     if 'user' in session:
         g.user = session['user']
-        
-        
+ 
+    # Set up the menus and permissions
     g.admin = Admin(g.db) # This is where user access rules are stored
+    
+    # get a list of subdomains if defined
+    site_config = shotglass.get_site_config()
+
+    # g.menu_items should be a list of dicts
+    #  with keys of 'title' & 'url' used to construct
+    #  the non-table based items in the main menu
+    g.menu_items = [
+        {'title':'Home','url':url_for('item.display')},
+    ]
+    
+    # set up menus and permissions based on module
+    module = site_config.get('MODULE')
+    if module and module == 'inventory':
+        from inventory import inventory
+        g.menu_items = [
+            {'title':'Home','url':url_for('item.display')},
+            {'title':'Inventory Items','url':url_for('item.display')},
+            {'title':'Stock Report','url':url_for('item.stock_report')},
+            ]
+        inventory.register_admin()
+        inventory
+    elif module and module == 'events':
+        # set up the events menus
+        pass
+    elif module and module == 'bikematch':
+        pass
+    
+    shotglass.user_setup() # g.admin now holds access rules Users, Prefs and Roles
     g.admin.register(User,
             url_for('tools.view_log'),
             display_name='View Log',
             top_level = True,
             minimum_rank_required=500,
         )
-    shotglass.user_setup() # g.admin now holds access rules Users, Prefs and Roles
-    inventory.register_admin()
-    
-    # g.menu_items should be a list of dicts
-    #  with keys of 'title' & 'url' used to construct
-    #  the non-table based items in the main menu
-    g.menu_items = [
-        {'title':'Home','url':url_for('item.display')},
-        {'title':'Inventory Items','url':url_for('item.display')},
-        {'title':'Stock Report','url':url_for('item.stock_report')},
-        ]
-    
+        
 @app.teardown_request
 def _teardown(exception):
     if 'db' in g:
@@ -130,20 +149,31 @@ def page_not_found(error):
 def server_error(error):
     return shotglass.server_error(error)
 
-#Register the static route
-app.add_url_rule('/static/<path:filename>','static',shotglass.static)
+# normally register all the module routes first so they take
+# precidence over the standard routes defined later
+# in the case of a conflict.
+#
+# all blueprints must be registered at start up for routing
+# to work. You can't change routing after the app starts (I think)
+
+# Setup inventory
+inventory.register_blueprints(app)
 
 #Register the home page
 app.add_url_rule('/','display',item.display)
 
+#Register the static route
+app.add_url_rule('/static/<path:filename>','static',shotglass.static)
+
 ## Setup the routes for users
+# for host in app.config[SHARED_HOST_SETTINGS]:
+#     if 'SUBDOMAIN' in host:
+#         shotglass.register_users(app,subdomain=host['SUBDOMAIN'])
+
 shotglass.register_users(app)
 
 # setup www.routes...
 shotglass.register_www(app)
-
-# Setup inventory
-inventory.register_blueprints(app)
 
 app.register_blueprint(tools.mod)
 
@@ -153,7 +183,7 @@ if __name__ == '__main__':
         # create the default database if needed
         initalize_all_tables()
         
-    #app.run(host='localhost', port=8000)
-    app.run()
+    app.run(host='willie.local', port=5000)
+    # app.run()
     
     

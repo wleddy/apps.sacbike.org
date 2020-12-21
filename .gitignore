@@ -8,6 +8,7 @@ instance/
 __pycache__
 .pytest_cache
 .coverage
+.vscode/settings.json
 
 ## Passenger web app files
 tmp/
@@ -19,3 +20,7 @@ shotglass2/
 shotglass/
 ### the shared inventory project
 inventory/
+### The Staffing repo
+staffing/
+### The bikematch repo
+bikematch/
